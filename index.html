@@ -74,6 +74,26 @@
             .show-iframe iframe {
                 display: block;
             }
+            /* Toast */
+            #toast {
+                position: fixed;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%) translateY(8px);
+                background: #1e293b;
+                color: #fff;
+                padding: 10px 20px;
+                border-radius: 99px;
+                font-size: 13px;
+                opacity: 0;
+                transition: opacity 0.2s, transform 0.2s;
+                pointer-events: none;
+                z-index: 200;
+            }
+            #toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
             /* Modal */
             .modal-backdrop {
                 position: fixed;
@@ -171,6 +191,9 @@
             </div>
         </div>
 
+        <!-- Toast -->
+        <div id="toast"></div>
+
         <iframe
             id="viewer"
             sandbox="allow-scripts allow-forms allow-modals allow-popups"
@@ -225,6 +248,16 @@
                 return new Uint8Array(await new Response(stream).arrayBuffer());
             }
 
+            // ---------- Toast ----------
+            let toastTimer = null;
+            function showToast(msg) {
+                const el = document.getElementById("toast");
+                el.textContent = msg;
+                el.classList.add("show");
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => el.classList.remove("show"), 2500);
+            }
+
             // ---------- App ----------
             const dec = new TextDecoder("utf-8", { fatal: false });
             const viewer = document.getElementById("viewer");
@@ -232,72 +265,70 @@
             // Thresholds (fragment chars)
             const LIMITS = [
                 {
-                    label: "Works everywhere",
-                    desc: "Safe to share in emails, Slack, Teams, and most messaging apps.",
-                    green: 0,
-                    yellow: 4_000,
-                    red: 8_000,
+                    label: "Works in messaging apps",
+                    green:  "Safe to paste in Slack, Teams, email, and most chat apps.",
+                    yellow: "Some apps may reject this link — test before sending.",
+                    red:    "Too large for most messaging apps. Send the file directly instead.",
+                    yellowAt: 4_000,
+                    redAt:    8_000,
                 },
                 {
-                    label: "Works in most browsers",
-                    desc: "Browsers can open this link directly from the address bar.",
-                    green: 0,
-                    yellow: 500_000,
-                    red: 2_000_000,
+                    label: "Opens in browser",
+                    green:  "Will open fine in all modern browsers.",
+                    yellow: "Very large — may be slow to open in some browsers.",
+                    red:    "Exceeds browser URL limits. The link may not open at all.",
+                    yellowAt: 500_000,
+                    redAt:    2_000_000,
                 },
             ];
 
             function sizeColor(len, limit) {
-                if (len < limit.yellow) return "green";
-                if (len < limit.red)   return "yellow";
+                if (len < limit.yellowAt) return "green";
+                if (len < limit.redAt)   return "yellow";
                 return "red";
             }
 
             function buildChecks(fragLen) {
-                const kb = (fragLen / 1024).toFixed(1);
                 const checks = document.getElementById("modalChecks");
                 checks.innerHTML = "";
 
-                // Overall size pill
+                const kb = (fragLen / 1024).toFixed(1);
                 const sizeLine = document.createElement("p");
                 sizeLine.style.cssText = "margin:0 0 16px; opacity:0.7; font-size:13px;";
                 sizeLine.textContent = `Link size: ${kb} KB`;
                 checks.appendChild(sizeLine);
 
+                let worstColor = "green";
                 for (const limit of LIMITS) {
                     const color = sizeColor(fragLen, limit);
-                    const messages = {
-                        green:  { label: limit.label, desc: limit.desc },
-                        yellow: {
-                            label: limit.label + " — might have issues",
-                            desc: limit.label === "Works everywhere"
-                                ? "Some messaging apps may truncate or reject this link. Try it before relying on it."
-                                : "Very large — some older browsers may struggle.",
-                        },
-                        red: {
-                            label: limit.label + " — likely won't work",
-                            desc: limit.label === "Works everywhere"
-                                ? "Too large for most messaging apps. Share the link by other means (e.g. a file host)."
-                                : "Exceeds browser URL limits. The link may not open.",
-                        },
-                    }[color];
+                    if (color === "red" || (color === "yellow" && worstColor === "green"))
+                        worstColor = color;
 
                     const row = document.createElement("div");
                     row.className = "check";
                     row.innerHTML = `
                         <div class="dot ${color}"></div>
                         <div>
-                            <div class="check-label">${messages.label}</div>
-                            <div class="check-desc">${messages.desc}</div>
+                            <div class="check-label">${limit.label}</div>
+                            <div class="check-desc">${limit[color]}</div>
                         </div>`;
                     checks.appendChild(row);
                 }
+
+                const title = document.getElementById("modalTitle");
+                if (worstColor === "red")        title.textContent = "Warning: link may not work";
+                else if (worstColor === "yellow") title.textContent = "Link ready — some warnings";
+                else                              title.textContent = "Your link is ready";
             }
 
             let pendingFragment = null;
 
             async function handleFile(file) {
                 if (!file) return;
+                if (!file.name.match(/\.html?$/i) && file.type !== "text/html") {
+                    showToast("Please choose an HTML file (.html or .htm)");
+                    return;
+                }
                 const bytes = new Uint8Array(await file.arrayBuffer());
                 let payloadBytes = bytes;
                 let prefix = "r.";
@@ -315,6 +346,22 @@
                 document.getElementById("modalBackdrop").classList.remove("hidden");
             }
 
+            async function copyToClipboard(text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch (_) {
+                    // Fallback for non-HTTPS contexts
+                    const ta = document.createElement("textarea");
+                    ta.value = text;
+                    ta.style.cssText = "position:fixed;opacity:0";
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+            }
+
             async function renderFromHash() {
                 const hash = location.hash.startsWith("#")
                     ? location.hash.slice(1)
@@ -324,10 +371,9 @@
                     viewer.removeAttribute("srcdoc");
                     return;
                 }
-                const prefix = hash.startsWith("g.") || hash.startsWith("r.")
-                    ? hash.slice(0, 2)
-                    : "r.";
-                const b64url = prefix ? hash.slice(2) : hash;
+                const hasPrefix = hash.startsWith("g.") || hash.startsWith("r.");
+                const prefix = hasPrefix ? hash.slice(0, 2) : "r.";
+                const b64url = hasPrefix ? hash.slice(2) : hash;
                 try {
                     let bytes = base64UrlDecodeToBytes(b64url);
                     if (prefix === "g.") bytes = await gunzipBytes(bytes);
@@ -336,34 +382,31 @@
                 } catch (e) {
                     document.body.classList.remove("show-iframe");
                     viewer.removeAttribute("srcdoc");
+                    showToast("Failed to decode link — it may be truncated or corrupted.");
                     console.error(e);
                 }
             }
 
+            function goBack() {
+                history.replaceState(null, "", location.href.split("#")[0]);
+                document.body.classList.remove("show-iframe");
+                viewer.removeAttribute("srcdoc");
+            }
+
+            // Modal buttons
             document.getElementById("btnModalView").addEventListener("click", async () => {
                 const url = location.href.split("#")[0] + "#" + pendingFragment;
-                try {
-                    await navigator.clipboard.writeText(url);
-                } catch (_) {
-                    // Fallback for non-HTTPS contexts
-                    const ta = document.createElement("textarea");
-                    ta.value = url;
-                    ta.style.position = "fixed";
-                    ta.style.opacity = "0";
-                    document.body.appendChild(ta);
-                    ta.focus();
-                    ta.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(ta);
-                }
+                await copyToClipboard(url);
                 document.getElementById("modalBackdrop").classList.add("hidden");
                 location.hash = pendingFragment;
+                showToast("Link copied to clipboard!");
             });
             document.getElementById("btnModalBack").addEventListener("click", () => {
                 document.getElementById("modalBackdrop").classList.add("hidden");
                 pendingFragment = null;
             });
 
+            // Upload controls
             document.getElementById("btnPick").addEventListener("click", () =>
                 document.getElementById("fileInput").click(),
             );
@@ -371,6 +414,7 @@
                 handleFile(e.target.files[0]),
             );
 
+            // Drag & drop
             const drop = document.getElementById("drop");
             ["dragenter", "dragover"].forEach((evt) =>
                 drop.addEventListener(evt, (e) => {
