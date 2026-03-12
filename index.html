@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>Client-side HTML Share Viewer</title>
+        <title>HTML Share Viewer</title>
         <style>
             :root {
                 color-scheme: light dark;
@@ -18,29 +18,39 @@
                     Arial,
                     sans-serif;
             }
-            header {
-                position: sticky;
-                top: 0;
-                z-index: 10;
-                backdrop-filter: blur(10px);
-                border-bottom: 1px solid
-                    color-mix(in oklab, CanvasText 15%, transparent);
-                padding: 10px 12px;
+            main {
                 display: flex;
-                gap: 10px;
+                flex-direction: column;
                 align-items: center;
-                flex-wrap: wrap;
+                justify-content: center;
+                min-height: 100vh;
+                padding: 24px;
+                box-sizing: border-box;
+            }
+            .drop {
+                border: 2px dashed
+                    color-mix(in oklab, CanvasText 25%, transparent);
+                border-radius: 16px;
+                padding: 48px 32px;
+                width: min(480px, 100%);
+                display: grid;
+                place-items: center;
+                background: color-mix(in oklab, Canvas 95%, transparent);
+                cursor: pointer;
+                text-align: center;
+            }
+            .drop.dragover {
+                border-color: color-mix(in oklab, CanvasText 55%, transparent);
                 background: color-mix(in oklab, Canvas 85%, transparent);
             }
-            header .spacer {
-                flex: 1;
-            }
-            button,
-            input[type="checkbox"] + label {
-                font: inherit;
+            .drop p {
+                margin: 6px 0;
+                opacity: 0.9;
             }
             button {
-                padding: 8px 10px;
+                font: inherit;
+                margin-top: 20px;
+                padding: 10px 20px;
                 border-radius: 10px;
                 border: 1px solid
                     color-mix(in oklab, CanvasText 20%, transparent);
@@ -50,134 +60,86 @@
             button:active {
                 transform: translateY(1px);
             }
-            button[disabled] {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-            .pill {
-                padding: 6px 10px;
-                border-radius: 999px;
-                border: 1px solid
-                    color-mix(in oklab, CanvasText 18%, transparent);
-                background: color-mix(in oklab, Canvas 92%, transparent);
-                display: inline-flex;
-                gap: 8px;
-                align-items: center;
-            }
-            main {
-                padding: 14px 12px;
-            }
-            .drop {
-                border: 2px dashed
-                    color-mix(in oklab, CanvasText 25%, transparent);
-                border-radius: 16px;
-                padding: 22px;
-                min-height: 150px;
-                display: grid;
-                place-items: center;
-                background: color-mix(in oklab, Canvas 95%, transparent);
-            }
-            .drop.dragover {
-                border-color: color-mix(in oklab, CanvasText 55%, transparent);
-                background: color-mix(in oklab, Canvas 85%, transparent);
-            }
-            .drop p {
-                margin: 6px 0;
-                text-align: center;
-                opacity: 0.9;
-            }
-            .row {
-                display: flex;
-                gap: 10px;
-                flex-wrap: wrap;
-                align-items: center;
-                justify-content: center;
-            }
-            .hint {
-                opacity: 0.75;
-                font-size: 12px;
-                max-width: 800px;
-                margin: 10px auto 0;
-            }
-            .urlbox {
-                width: min(1100px, 100%);
-                display: grid;
-                gap: 8px;
-                margin: 14px auto 0;
-            }
-            .urlbox textarea {
-                width: 100%;
-                min-height: 72px;
-                resize: vertical;
-                padding: 10px;
-                border-radius: 12px;
-                border: 1px solid
-                    color-mix(in oklab, CanvasText 20%, transparent);
-                background: color-mix(in oklab, Canvas 95%, transparent);
-                font:
-                    12px/1.35 ui-monospace,
-                    SFMono-Regular,
-                    Menlo,
-                    Monaco,
-                    Consolas,
-                    "Liberation Mono",
-                    monospace;
-            }
-            .status {
-                opacity: 0.8;
-                font-size: 12px;
-            }
             iframe {
+                position: fixed;
+                inset: 0;
                 width: 100%;
-                height: calc(100vh - 66px);
+                height: 100%;
                 border: 0;
-                border-top: 1px solid
-                    color-mix(in oklab, CanvasText 15%, transparent);
-                background: Canvas;
+                display: none;
+            }
+            .show-iframe main {
                 display: none;
             }
             .show-iframe iframe {
                 display: block;
             }
-            .show-iframe .uploader {
+            /* Modal */
+            .modal-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.45);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 100;
+            }
+            .modal-backdrop.hidden {
                 display: none;
             }
-            .mono {
-                font-family:
-                    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-                    "Liberation Mono", monospace;
+            .modal {
+                background: Canvas;
+                border-radius: 16px;
+                padding: 28px 32px;
+                width: min(440px, 90vw);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            }
+            .modal h2 {
+                margin: 0 0 20px;
+                font-size: 18px;
+            }
+            .check {
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+            .dot {
+                flex-shrink: 0;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                margin-top: 2px;
+            }
+            .dot.green  { background: #22c55e; }
+            .dot.yellow { background: #f59e0b; }
+            .dot.red    { background: #ef4444; }
+            .check-label {
+                font-weight: 600;
+                margin-bottom: 2px;
+            }
+            .check-desc {
+                opacity: 0.75;
+                font-size: 13px;
+            }
+            .modal-actions {
+                margin-top: 24px;
+                display: flex;
+                gap: 10px;
+                justify-content: flex-end;
+            }
+            .modal-actions button {
+                margin-top: 0;
+            }
+            .btn-primary {
+                background: #3b82f6;
+                color: #fff;
+                border-color: #2563eb;
             }
         </style>
     </head>
     <body>
-        <header>
-            <strong>Client-side HTML Share Viewer</strong>
-            <span class="pill" id="modePill"
-                >Mode: <span class="mono" id="modeText">upload</span></span
-            >
-
-            <span class="spacer"></span>
-
-            <span class="pill">
-                <input id="useGzip" type="checkbox" />
-                <label for="useGzip">gzip (smaller links)</label>
-            </span>
-
-            <button id="btnPick">Choose file</button>
-            <input
-                id="fileInput"
-                type="file"
-                accept=".html,.htm,text/html"
-                hidden
-            />
-
-            <button id="btnCopy" disabled>Copy share URL</button>
-            <button id="btnClear" title="Remove fragment and return to upload">
-                Clear
-            </button>
-        </header>
-
-        <main class="uploader">
+        <main>
             <div
                 id="drop"
                 class="drop"
@@ -185,40 +147,30 @@
                 role="button"
                 aria-label="Drop an HTML file here or choose a file"
             >
-                <div>
-                    <p><strong>Drag &amp; drop an .html file</strong></p>
-                    <p>or click “Choose file”</p>
-                    <div class="row" style="margin-top: 10px">
-                        <span class="pill">Client-side only</span>
-                        <span class="pill"
-                            >Share via <span class="mono">#fragment</span></span
-                        >
-                    </div>
-                    <p class="hint">
-                        The HTML is encoded into the URL fragment (<span
-                            class="mono"
-                            >#...</span
-                        >). Browsers do not send the fragment in HTTP requests,
-                        so GitHub Pages never receives the HTML. Note:
-                        messaging/email systems may still store the full URL you
-                        send.
-                    </p>
-                </div>
+                <p><strong>Drag &amp; drop an .html file</strong></p>
+                <p>or click the button below</p>
             </div>
-
-            <div class="urlbox">
-                <div class="status" id="status">
-                    Drop a file to generate a shareable URL.
-                </div>
-                <textarea
-                    id="shareUrl"
-                    placeholder="Generated share URL will appear here…"
-                    readonly
-                ></textarea>
-            </div>
+            <button id="btnPick">Choose file</button>
+            <input
+                id="fileInput"
+                type="file"
+                accept=".html,.htm,text/html"
+                hidden
+            />
         </main>
 
-        <!-- Sandbox keeps the rendered HTML/JS isolated from this page. -->
+        <!-- Size check modal -->
+        <div id="modalBackdrop" class="modal-backdrop hidden">
+            <div class="modal">
+                <h2 id="modalTitle">Your link is ready</h2>
+                <div id="modalChecks"></div>
+                <div class="modal-actions">
+                    <button id="btnModalBack">Go back</button>
+                    <button id="btnModalView" class="btn-primary">Copy link &amp; view</button>
+                </div>
+            </div>
+        </div>
+
         <iframe
             id="viewer"
             sandbox="allow-scripts allow-forms allow-modals allow-popups"
@@ -228,7 +180,6 @@
         <script>
             // ---------- Base64URL helpers ----------
             function bytesToBase64(bytes) {
-                // Chunked conversion avoids call stack / argument limits on large files.
                 let binary = "";
                 const chunkSize = 0x8000;
                 for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -257,7 +208,7 @@
                 return bytes;
             }
 
-            // ---------- gzip helpers (optional) ----------
+            // ---------- gzip helpers ----------
             const gzipSupported =
                 "CompressionStream" in window &&
                 "DecompressionStream" in window;
@@ -265,96 +216,103 @@
             async function gzipBytes(bytes) {
                 const cs = new CompressionStream("gzip");
                 const stream = new Blob([bytes]).stream().pipeThrough(cs);
-                const buf = await new Response(stream).arrayBuffer();
-                return new Uint8Array(buf);
+                return new Uint8Array(await new Response(stream).arrayBuffer());
             }
 
             async function gunzipBytes(bytes) {
                 const ds = new DecompressionStream("gzip");
                 const stream = new Blob([bytes]).stream().pipeThrough(ds);
-                const buf = await new Response(stream).arrayBuffer();
-                return new Uint8Array(buf);
+                return new Uint8Array(await new Response(stream).arrayBuffer());
             }
 
             // ---------- App ----------
-            const els = {
-                drop: document.getElementById("drop"),
-                btnPick: document.getElementById("btnPick"),
-                fileInput: document.getElementById("fileInput"),
-                useGzip: document.getElementById("useGzip"),
-                btnCopy: document.getElementById("btnCopy"),
-                btnClear: document.getElementById("btnClear"),
-                shareUrl: document.getElementById("shareUrl"),
-                status: document.getElementById("status"),
-                viewer: document.getElementById("viewer"),
-                modeText: document.getElementById("modeText"),
-                modePill: document.getElementById("modePill"),
-            };
-
-            const enc = new TextEncoder();
             const dec = new TextDecoder("utf-8", { fatal: false });
+            const viewer = document.getElementById("viewer");
 
-            function setMode(mode) {
-                els.modeText.textContent = mode;
-                document.body.classList.toggle("show-iframe", mode === "view");
+            // Thresholds (fragment chars)
+            const LIMITS = [
+                {
+                    label: "Works everywhere",
+                    desc: "Safe to share in emails, Slack, Teams, and most messaging apps.",
+                    green: 0,
+                    yellow: 4_000,
+                    red: 8_000,
+                },
+                {
+                    label: "Works in most browsers",
+                    desc: "Browsers can open this link directly from the address bar.",
+                    green: 0,
+                    yellow: 500_000,
+                    red: 2_000_000,
+                },
+            ];
+
+            function sizeColor(len, limit) {
+                if (len < limit.yellow) return "green";
+                if (len < limit.red)   return "yellow";
+                return "red";
             }
 
-            function setStatus(msg) {
-                els.status.textContent = msg;
+            function buildChecks(fragLen) {
+                const kb = (fragLen / 1024).toFixed(1);
+                const checks = document.getElementById("modalChecks");
+                checks.innerHTML = "";
+
+                // Overall size pill
+                const sizeLine = document.createElement("p");
+                sizeLine.style.cssText = "margin:0 0 16px; opacity:0.7; font-size:13px;";
+                sizeLine.textContent = `Link size: ${kb} KB`;
+                checks.appendChild(sizeLine);
+
+                for (const limit of LIMITS) {
+                    const color = sizeColor(fragLen, limit);
+                    const messages = {
+                        green:  { label: limit.label, desc: limit.desc },
+                        yellow: {
+                            label: limit.label + " — might have issues",
+                            desc: limit.label === "Works everywhere"
+                                ? "Some messaging apps may truncate or reject this link. Try it before relying on it."
+                                : "Very large — some older browsers may struggle.",
+                        },
+                        red: {
+                            label: limit.label + " — likely won't work",
+                            desc: limit.label === "Works everywhere"
+                                ? "Too large for most messaging apps. Share the link by other means (e.g. a file host)."
+                                : "Exceeds browser URL limits. The link may not open.",
+                        },
+                    }[color];
+
+                    const row = document.createElement("div");
+                    row.className = "check";
+                    row.innerHTML = `
+                        <div class="dot ${color}"></div>
+                        <div>
+                            <div class="check-label">${messages.label}</div>
+                            <div class="check-desc">${messages.desc}</div>
+                        </div>`;
+                    checks.appendChild(row);
+                }
             }
 
-            function currentBaseUrl() {
-                // Keep existing path; only change fragment.
-                return location.href.split("#")[0];
-            }
-
-            function buildShareUrl(fragmentPayload) {
-                return currentBaseUrl() + "#" + fragmentPayload;
-            }
-
-            function setFragment(fragmentPayload) {
-                // Assigning hash does not reload the page on GitHub Pages; it triggers hashchange.
-                location.hash = fragmentPayload;
-            }
+            let pendingFragment = null;
 
             async function handleFile(file) {
                 if (!file) return;
-
-                const ab = await file.arrayBuffer();
-                const bytes = new Uint8Array(ab);
-
-                const wantGzip = gzipSupported && els.useGzip.checked;
+                const bytes = new Uint8Array(await file.arrayBuffer());
                 let payloadBytes = bytes;
-                let prefix = "r."; // raw
-                if (wantGzip) {
+                let prefix = "r.";
+                if (gzipSupported) {
                     try {
                         const gz = await gzipBytes(bytes);
-                        // Use gzip only if it actually helps.
                         if (gz.length + 32 < bytes.length) {
                             payloadBytes = gz;
                             prefix = "g.";
                         }
-                    } catch (_) {
-                        // Fall back to raw if compression fails.
-                        payloadBytes = bytes;
-                        prefix = "r.";
-                    }
+                    } catch (_) {}
                 }
-
-                const encoded = base64UrlEncode(payloadBytes);
-                const fragment = prefix + encoded;
-
-                const url = buildShareUrl(fragment);
-                els.shareUrl.value = url;
-                els.btnCopy.disabled = false;
-
-                const kb = (n) => (n / 1024).toFixed(1) + " KB";
-                const note = prefix === "g." ? "gzip" : "raw";
-                setStatus(
-                    `Loaded: ${file.name} (${kb(bytes.length)}). Encoded as ${note}. Fragment length: ${fragment.length.toLocaleString()} chars.`,
-                );
-                // Move to viewer immediately.
-                setFragment(fragment);
+                pendingFragment = prefix + base64UrlEncode(payloadBytes);
+                buildChecks(pendingFragment.length);
+                document.getElementById("modalBackdrop").classList.remove("hidden");
             }
 
             async function renderFromHash() {
@@ -362,110 +320,77 @@
                     ? location.hash.slice(1)
                     : "";
                 if (!hash) {
-                    setMode("upload");
-                    els.viewer.removeAttribute("srcdoc");
+                    document.body.classList.remove("show-iframe");
+                    viewer.removeAttribute("srcdoc");
                     return;
                 }
-
-                setMode("view");
-
-                let prefix = "r.";
-                let b64url = hash;
-
-                if (hash.startsWith("g.") || hash.startsWith("r.")) {
-                    prefix = hash.slice(0, 2);
-                    b64url = hash.slice(2);
-                }
-
+                const prefix = hash.startsWith("g.") || hash.startsWith("r.")
+                    ? hash.slice(0, 2)
+                    : "r.";
+                const b64url = prefix ? hash.slice(2) : hash;
                 try {
                     let bytes = base64UrlDecodeToBytes(b64url);
-
-                    if (prefix === "g.") {
-                        if (!gzipSupported)
-                            throw new Error(
-                                "This browser does not support gzip decoding (DecompressionStream).",
-                            );
-                        bytes = await gunzipBytes(bytes);
-                    }
-
-                    const html = dec.decode(bytes);
-
-                    // Render into sandboxed iframe. HTML may contain inline JS/CSS; it will execute inside the sandbox.
-                    els.viewer.srcdoc = html;
-
-                    const modeLabel =
-                        prefix === "g." ? "view (gzip)" : "view (raw)";
-                    els.modeText.textContent = modeLabel;
+                    if (prefix === "g.") bytes = await gunzipBytes(bytes);
+                    viewer.srcdoc = dec.decode(bytes);
+                    document.body.classList.add("show-iframe");
                 } catch (e) {
-                    setMode("upload");
-                    els.viewer.removeAttribute("srcdoc");
-                    els.shareUrl.value = "";
-                    els.btnCopy.disabled = true;
-                    setStatus(
-                        "Failed to decode fragment. The URL may be truncated or too long for this app/browser.",
-                    );
+                    document.body.classList.remove("show-iframe");
+                    viewer.removeAttribute("srcdoc");
                     console.error(e);
                 }
             }
 
-            // ---------- Events ----------
-            els.btnPick.addEventListener("click", () => els.fileInput.click());
-            els.fileInput.addEventListener("change", () =>
-                handleFile(els.fileInput.files[0]),
+            document.getElementById("btnModalView").addEventListener("click", async () => {
+                const url = location.href.split("#")[0] + "#" + pendingFragment;
+                try {
+                    await navigator.clipboard.writeText(url);
+                } catch (_) {
+                    // Fallback for non-HTTPS contexts
+                    const ta = document.createElement("textarea");
+                    ta.value = url;
+                    ta.style.position = "fixed";
+                    ta.style.opacity = "0";
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+                document.getElementById("modalBackdrop").classList.add("hidden");
+                location.hash = pendingFragment;
+            });
+            document.getElementById("btnModalBack").addEventListener("click", () => {
+                document.getElementById("modalBackdrop").classList.add("hidden");
+                pendingFragment = null;
+            });
+
+            document.getElementById("btnPick").addEventListener("click", () =>
+                document.getElementById("fileInput").click(),
+            );
+            document.getElementById("fileInput").addEventListener("change", (e) =>
+                handleFile(e.target.files[0]),
             );
 
-            els.btnCopy.addEventListener("click", async () => {
-                const text = els.shareUrl.value || location.href;
-                try {
-                    await navigator.clipboard.writeText(text);
-                    setStatus("Copied share URL to clipboard.");
-                } catch (_) {
-                    // Fallback: select text
-                    els.shareUrl.focus();
-                    els.shareUrl.select();
-                    setStatus("Clipboard blocked; URL selected—copy manually.");
-                }
-            });
-
-            els.btnClear.addEventListener("click", () => {
-                history.replaceState(null, "", currentBaseUrl()); // removes fragment without adding history entry
-                els.shareUrl.value = "";
-                els.btnCopy.disabled = true;
-                setStatus("Cleared fragment.");
-                renderFromHash();
-            });
-
-            // Drag & drop
+            const drop = document.getElementById("drop");
             ["dragenter", "dragover"].forEach((evt) =>
-                els.drop.addEventListener(evt, (e) => {
+                drop.addEventListener(evt, (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    els.drop.classList.add("dragover");
+                    drop.classList.add("dragover");
                 }),
             );
             ["dragleave", "drop"].forEach((evt) =>
-                els.drop.addEventListener(evt, (e) => {
+                drop.addEventListener(evt, (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    els.drop.classList.remove("dragover");
+                    drop.classList.remove("dragover");
                 }),
             );
-            els.drop.addEventListener("drop", (e) => {
-                const file = e.dataTransfer.files && e.dataTransfer.files[0];
-                handleFile(file);
-            });
+            drop.addEventListener("drop", (e) =>
+                handleFile(e.dataTransfer.files[0]),
+            );
 
-            // Navigate between upload/view using the fragment
             window.addEventListener("hashchange", renderFromHash);
-
-            // Initialize gzip checkbox based on support
-            els.useGzip.disabled = !gzipSupported;
-            els.useGzip.checked = gzipSupported; // default on if available
-            if (!gzipSupported)
-                els.useGzip.parentElement.title =
-                    "CompressionStream/DecompressionStream not supported in this browser.";
-
-            // On load: if there is a fragment, render it.
             renderFromHash();
         </script>
     </body>
